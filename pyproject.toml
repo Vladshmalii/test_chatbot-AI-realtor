@@ -1,0 +1,23 @@
+[project]
+name = "ai-realtor-bot"
+version = "0.2.0"
+description = "AI Realtor Telegram bot with FastAPI webhook"
+authors = [
+  { name = "AI Assistant" }
+]
+requires-python = ">=3.11"
+dependencies = [
+  "aiogram>=3.2.0",
+  "fastapi>=0.104.1",
+  "uvicorn[standard]>=0.23.2",
+  "sqlalchemy>=2.0.23",
+  "psycopg2-binary>=2.9.9",
+  "pydantic>=2.5.2",
+  "requests>=2.31.0",
+  "gspread>=5.12.4",
+  "google-auth>=2.23.4"
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
