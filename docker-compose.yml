@@ -1,0 +1,26 @@
+version: "3.9"
+services:
+  app:
+    build: .
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://realtor:realtor@db:5432/realtor
+      LISTINGS_API_URL: https://bots2.tira.com.ua:8443/api/get_apartments
+      LISTINGS_API_KEY: tsj3HsMqL136cMxhf5zwcFdniz7a
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: realtor
+      POSTGRES_USER: realtor
+      POSTGRES_PASSWORD: realtor
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+volumes:
+  db_data:
