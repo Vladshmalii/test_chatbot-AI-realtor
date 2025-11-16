@@ -1,3 +1,68 @@
+# --- ОС и редакторы ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# --- Python ---
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+.build/
+.eggs/
+dist/
+build/
+*.egg-info/
+.venv/
+venv/
+env/
+pip-wheel-metadata/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.mypy_cache/
+.pyre/
+.ruff_cache/
+.pytype/
+.ipynb_checkpoints/
+.python-version
+
+# --- Логи ---
+*.log
+logs/
+log/
+
+# --- Env/секреты ---
 .env
+.env.*            # .env.dev, .env.prod и т.п.
+!.env.example     # шаблон оставляем в репозитории
+
+# --- Google/ключи/локальные секреты ---
+secrets/
+*.json            # ключи сервис-аккаунтов и пр.
+*.pem
+*.key
+
+# --- Docker ---
+# образы/кеши не коммитим
+*.pid
+*.seed
+# если используешь локальные override-файлы
+docker-compose.override.yml
+
+# --- Кэш gspread/прочее (если появится) ---
+.cache/
+.cache_*/
+
+# --- Служебные файлы ОС/архивы ---
+*.tmp
+*.bak
+*.orig
+*.old
+*.tar
+*.tar.gz
+*.zip

@@ -40,8 +40,8 @@ app/
 - `DATABASE_URL` — рядок підключення до PostgreSQL або іншої сумісної СУБД.
 - `GOOGLE_SPREADSHEET_ID` — ідентифікатор Google Spreadsheet з текстами діалогу.
 - `GOOGLE_SERVICE_ACCOUNT_JSON` — JSON сервісного акаунта Google у вигляді рядка.
-- `LISTINGS_API_URL` — адреса POST-ендпоінта для нерухомості (за замовчуванням `https://bots2.tira.com.ua:8443/api/get_apartments`).
-- `LISTINGS_API_KEY` — ключ доступу до API (за замовчуванням `tsj3HsMqL136cMxhf5zwcFdniz7a`).
+- `LISTINGS_API_URL` — адреса POST-ендпоінта для нерухомості .
+- `LISTINGS_API_KEY` — ключ доступу до API.
 
 ## Ініціалізація
 

@@ -1,12 +1,12 @@
 from datetime import datetime
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .base import Base
 
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    telegram_id: Mapped[int] = mapped_column(Integer, unique=True, index=True)
+    telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
     username: Mapped[str | None] = mapped_column(String(255), nullable=True)
     first_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -25,7 +25,8 @@ class Dialog(Base):
     messages: Mapped[list["Message"]] = relationship(back_populates="dialog", cascade="all, delete-orphan")
     filters: Mapped[list["FilterSnapshot"]] = relationship(back_populates="dialog", cascade="all, delete-orphan")
     api_requests: Mapped[list["ApiRequest"]] = relationship(back_populates="dialog", cascade="all, delete-orphan")
-    views: Mapped[list["ViewRequest"]] = relationship(back_populates="dialog", cascade="all, delete-orphan")
+    views: Mapped[list["View"]] = relationship(back_populates="dialog", cascade="all, delete-orphan")
+    viewing_requests: Mapped[list["ViewingRequest"]] = relationship(back_populates="dialog", cascade="all, delete-orphan")
 
 class Message(Base):
     __tablename__ = "messages"
@@ -54,11 +55,21 @@ class ApiRequest(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     dialog: Mapped[Dialog] = relationship(back_populates="api_requests")
 
-class ViewRequest(Base):
+class View(Base):
     __tablename__ = "views"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     dialog_id: Mapped[int] = mapped_column(ForeignKey("dialogs.id"), nullable=False)
     listing_id: Mapped[int] = mapped_column(Integer)
     payload: Mapped[dict] = mapped_column(JSON)
+    display_index: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     dialog: Mapped[Dialog] = relationship(back_populates="views")
+
+class ViewingRequest(Base):
+    __tablename__ = "viewing_requests"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    dialog_id: Mapped[int] = mapped_column(ForeignKey("dialogs.id"), nullable=False)
+    listing_id: Mapped[int] = mapped_column(Integer)
+    payload: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    dialog: Mapped[Dialog] = relationship(back_populates="viewing_requests")

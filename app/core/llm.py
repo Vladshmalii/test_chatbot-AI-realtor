@@ -1,586 +1,570 @@
 import re
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, List, Tuple, Optional
+from .sheets import sheets_client
+import logging
 
-DISTRICT_SOURCE = """5: Киевский
-6: Малиновский
-8: Приморский
-11: Суворовский"""
+logger = logging.getLogger(__name__)
+_WORDS_RE = re.compile(r"[^\w\u0400-\u04FF]+", flags=re.UNICODE)
 
-MICROAREA_SOURCE = """89: Бугаевка
-90: Дзержинского пос
-91: Застава
-92: Ленпоселок
-93: Мельницы
-94: Молдаванка
-95: Сахарный пос
-96: Слободка
-97: Фонтан
-98: Черемушки
-99: Аркадия
-102: Центр
-103: Шевченко-Французский
-104: Большевик
-105: Котовского пос
-106: Кривая Балка
-107: Куяльник
-108: Лузановка
-109: Нефтяников пос
-110: Пересыпь
-112: Шевченко
-113: Вузовский
-114: Дача Ковалевского
-115: Дружный ж/м
-116: Таирова
-118: Царское село
-119: Червоный хутор
-121: Черноморка
-122: Чубаевка"""
 
-STREET_SOURCE = """266969: бульв. Заболотного (область)
-266985: бульв. Лидерсовский
-267090: бульв. Приморский
-150183: вулиця Академика Вильямса
-269019: КООП. Аркадиевская аллея
-268839: КООП. СК Таировское
-150900: линия 1-а Лиманчик
-150901: линия 1-а Люстдорфская
-150903: линия 1-а Чубаевка
-150902: линия 1-ая Суворовская
-150882: линия 10-а Люстдорфская
-150883: линия 10-я Суворовская
-150884: линия 11-а Люстдорфская
-150885: линия 11-я Суворовская
-150886: линия 12-я Люстдорфская
-150887: линия 12-я Суворовская
-150888: линия 13-я 6ст. Люстдорфской дор.
-150889: линия 13-я Суворовская
-150890: линия 14-я Люстдорфская
-150891: линия 14-я Суворовская
-150892: линия 15-я Люстдорфская
-150893: линия 15-я Суворовская
-150895: линия 16-я Люстдорфская
-150896: линия 17-я Люстдорфская
-268617: линия 18-линия
-150897: линия 18-я Люстдорфская
-150898: линия 19-я Люстдорфская
-150899: линия 19-я Суворовская
-150912: линия 2-а Лиманчик
-150914: линия 2-я Суворовская
-150904: линия 22-я Суворовская
-150905: линия 23-я Суворовская
-150906: линия 24-я Суворовская
-150907: линия 25-я Суворовская
-150908: линия 26-я Суворовская
-150909: линия 27-я Суворовская
-150910: линия 28-я Суворовская
-150911: линия 29-я Суворовская
-150922: линия 3-а Лиманчик
-150923: линия 3-а Люстдорфская
-150924: линия 3-я Суворовская
-150915: линия 30-я Суворовская
-150916: линия 31-я Суворовская
-150917: линия 32-я Суворовская
-150918: линия 36-а
-150919: линия 37-а
-150920: линия 38-а
-150921: линия 39-а
-150934: линия 4-а Лиманчик
-150935: линия 4-я Люстдорфская
-150925: линия 41-а
-150926: линия 42-а
-150927: линия 43-а
-150928: линия 44-а
-150929: линия 45-а
-150930: линия 46-а
-150931: линия 47-а
-150932: линия 48-а
-150933: линия 49-а
-150942: линия 5-а Лиманчик
-150943: линия 5-я Люстдорфская
-150944: линия 5-я Суворовская
-150936: линия 50-а
-150937: линия 51-а
-150938: линия 52-а
-150939: линия 53-а
-150940: линия 54-а
-150941: линия 55-а
-150946: линия 6-я Суворовская
-150948: линия 7-я Суворовская
-150949: линия 8-а Лиманчик
-150950: линия 8-а Люстдорфская
-150951: линия 8-я Суворовская
-150952: линия 9-а Лиманчик
-150953: линия 9-а Люстдорфская
-267857: линия Вторая линия Курортного квартала
-150955: м-р Курорт Куяльник
-267023: Дружный
-267943: Золотой Бугаз (область)
-150956: Ланжерон
-150881: Радужный
-267870: Солнечный
-269040: набережная Лузановский Пляж
-150957: Гамова
-150960: Старобазарний
-269255: 1- й Украинский
-151002: 1-й Александра Невского
-150978: 1-й Амундсена
-150981: 1-й Бассейный
-150985: 1-й Водопроводный
-151016: 1-й Восточный
-150983: 1-й Известковый
-150991: 1-й Китобойный
-150993: 1-й Кустанайський
-151018: 1-й Майский
-151000: 1-й Моторный
-151004: 1-й Офицерский
-151007: 1-й Проездной
-151009: 1-й Равенства
-269209: 1-й Сиротский
-151015: 1-й Сурикова
-151020: 1-й Флотский
-151022: 1-й Черноморский
-150972: 10-й Черноморский
-150973: 11-й Черноморский
-150974: 12-й Черноморский
-267780: 13-й Черноморский
-267373: 2-й Глазунова
-151057: 2-й Александра Невского
-267305: 2-й Амундсена
-267108: 2-й Бассейный
-151037: 2-й Водопроводный
-150152: 2-й Восточный
-151034: 2-й Известковый
-267601: 2-й Китобойный
-267581: 2-й Котовского
-151047: 2-й Кустанайський
-151070: 2-й Майский
-151054: 2-й Моторный
-151056: 2-й Обильный
-267458: 2-й Офицерский
-267262: 2-й Первомайский
-151061: 2-й Проездной
-150151: 2-й Равенства
-151011: 2-й Сиротский
-151067: 2-й Студенческий
-151068: 2-й Сурикова
-151073: 2-й Флотский
-151075: 2-й Химический
-151076: 2-й Черноморский
-267030: 2-ой Куликовский
-151098: 3-й Александра Невского
-267454: 3-й Амундсена
-266963: 3-й Бассейный
-151086: 3-й Водопроводный
-151084: 3-й Известковый
-151105: 3-й Майский
-151096: 3-й Моторный
-151099: 3-й Проектируемый
-267816: 3-й Тимирязева
-151104: 3-й Тимирязева
-151107: 3-й Флотский
-151109: 3-й Химический
-151110: 3-й Черноморский
-151124: 4-й Александра Невского
-151116: 4-й Бассейный
-151130: 4-й Майский
-151129: 4-й Тимирязева
-151131: 4-й Черноморский
-151113: 411-й Батареи
-151143: 5-й Балтский
-151132: 5-й Бассейный
-151141: 5-й Майский
-267671: 5-й Тимирязева
-151142: 5-й Черноморский
-151144: 6-й Бассейный
-151149: 6-й Черноморский
-151154: 7-й Черноморский
-267742: 8-й Черноморский
-151157: 9-й Черноморский
-151158: Абрикосовый
-268029: Агрономический
-267888: Александра Матросова
-268721: Александра Юрженко
-267096: Аркадиевский
-267042: Асташкина
-151230: Атамана Кошевого
-150976: Аэродромный
-268941: Аэродромный 2-й
-151166: Бадаева
-267140: Банный
-151168: Баркасний
-267701: Белякова
-267168: Бисквитный
-150128: Богатского
-151242: Больничный
-151174: Бориса Кифоренка
-151177: Ботанический
-151178: Валиховский
-267013: Ванный
-269069: Ванцетти
-267037: Ватманский
-151185: Виктора Дихтиевского
-267176: Вильгельма Габсбурга
-151182: Виноградный
-151184: Вишневый
-267694: Водный
-151187: Вознесенский
-151189: Волжский
-151191: Воронцовский
-268430: Всеволода Змиенко
-267024: Высокий
-267649: Гагарина
-267899: Газовый
-267284: Гаршина
-266900: Гвоздичный
-150258: Генерала Вишневского
-150295: Герцена
-268752: Гетьманский
-151039: Глазунова
-267270: Глинки
-151197: Госпитальный
-268967: Гранатный
-150315: Грузовой
-151397: Дальницький
-151199: Дачный
-267371: Дачный 1-й
-269246: Дачный 2-й
-151201: Джутовый
-268994: Дмитрия Донского
-151202: Дорстроя
-268396: Достоевского
-267414: Дружбы
-150355: Дунаева
-151209: Елисаветградский
-151211: Железнодорожный
-268988: Иванова 1-й пер.
-268996: Иванова 2-й пер.
-151212: Игоря Киселева
-267027: Интернациональный
-151214: Ипподромный
-150401: Испанский
-267650: Каманина
-151216: Канатный
-268377: Кандинского 1-й пер
-268378: Кандинского 2-й пер
-267608: Кандинского 3-й пер
-268376: Кандинского 4-й пер
-267336: Кандинского 5-й пер
-151217: Каретный
-269421: Карпенко-Карого
-267894: Картамышевский
-150415: Катаева
-151219: Каховский
-267022: Кедровый
-151302: Клубничный
-151223: Книжный
-267919: Ковалевского
-151222: Ковровый
-268789: Коллективный
-267199: Компасный
-151228: Кордонный
-267833: Котовского
-151231: Красный
-269298: Красных Зорь
-151229: Краткое
-151233: Кренкеля
-151237: Крушельницкой
-267036: Курортный
-267519: Курортный 1-й
-267479: Курортный 2-й
-267521: Курортный 4-й
-267493: Курортный 5-й
-150474: Леваневского
-150480: Лермонтовский
-150481: Лермонтовский 2-й
-151244: Летний
-151241: Лиманний
-151243: Линейный
-150958: Лодочный
-151246: Ломаный
-267159: Лунный
-151247: Львовский
-267466: Львовский 2-й
-151248: Любашевский
-267510: Людмилы Гинзбург
-151250: Лютеранский
-151252: Ляпунова
-267043: Майский
-151253: Маковый
-150510: Маланова
-151254: Манежный
-151256: Машиностроительный
-151257: Маяковского
-151261: Месячный
-150547: Митракова
-268834: Мичурина
-151262: Молокова
-151263: Монастырский
-151264: Мореходный
-267050: Морской
-267275: Морской 2-й
-269334: Москвина
-151266: Мостовой
-269439: Моторный
-267040: Мукачевский
-151268: Навигационный
-268944: Наличный 1-й
-269349: Наличный 2-й
-267078: Нахимова
-151273: Некрасова
-151269: Нефтяников 1-й
-266897: Нечипуренко
-151356: Николая Стражеско
-267440: Обильный 1-й пер
-151275: Обсерваторный
-151283: Ониловой
-267539: Оранжерейный
-268978: Павла Кравцова
-267823: Павлова
-267552: Панченко
-269302: Парашютный
-151290: Педагогический
-268954: Первомайский 1-й
-268352: Первомайский 2-й
-269266: Перова
-269401: Пироговский
-267478: Победы (обл)
-267299: Подъемный
-266899: Покровский
-267638: Ползунова
-267031: Ползунова
-267929: Ползунова 1-й
-267727: Ползунова 2-й
-150721: Поселковый
-150650: Почтовый
-267443: Приморский
-151125: Проектируемый 5-й
-267500: Пролетарский
-269061: Прорезной
-267750: Просвиты
-267117: Прохоровский
-267643: Псковский
-268518: Ровный
-267614: Рулевой
-267112: Сабанский
-269212: Садовый
-268750: Санаторный
-151321: Светлый
-267952: Севастопольский
-267113: Северный
-151326: Сельскохозяйственный
-267672: Сергея Уточкина
-267645: Сергея Эйзенштейна
-267902: Сеченова
-268931: Славы
-267383: Смелый
-267817: Солнечный (область)
-267611: Спартаковский
-151324: Среднефонтанский
-151335: Староконный
-268393: Сумской пер.
-151398: Тераспольский
-268943: Товарный
-267080: Тополевый
-267221: Топольского
-269110: Трудовой
-151344: Удельный
-267681: Узкий
-268762: Университетский
-267028: Успенский
-267683: Ушакова
-267209: Ушинского
-267156: Хантадзе (область)
-151351: Хвойный
-151235: Хрустальный
-267795: Хуторской
-267032: Цветочный
-267063: Чайковского
-269050: Черниговский
-267714: Черноморский
-266895: Чехова
-151363: Шампанский
-267318: Шахтинский
-267166: Шебелинский
-267591: Шевченко (область)
-267357: Шевченко 1-й (область)
-267587: Шевченко 2-й (область)
-267905: Ширяевский
-267114: Шовкуненко
-267689: Шолохова
-268098: Щукина
-267026: Экономический
-151208: Эстонский
-267317: Юбилейный 1-й
-269016: Юбилейный 2-й
-267580: Южный
-268367: Юннатов 3-й пер.
-268963: Яблочкиной
-268360: Якорный"""
+def _norm(s: str) -> str:
+    s = (s or "").lower().strip()
+    s = s.replace("і", "и").replace("ї", "и").replace("є", "е").replace("ґ", "г")
+    s = _WORDS_RE.sub(" ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
 
-CONDITION_MAP = {
-    "под отделочные работы": 6,
-    "жилая": 7,
-    "евроремонт": 8,
-    "от строителей": 9,
-    "капитальный": 14,
-    "под ремонт": 18
-}
 
-def parse_source(text: str) -> Dict[str, int]:
-    result: Dict[str, int] = {}
-    for raw in text.strip().splitlines():
-        if ":" not in raw:
+def _ints(text: str) -> List[int]:
+    return [int(x) for x in re.findall(r"\d+", (text or "").replace("\u00a0", ""))]
+
+
+_LOCATION_SYNONYMS: Dict[str, Dict[str, int]] = {"district": {}, "microarea": {}, "street": {}}
+_LOCATION_NAMES: Dict[str, Dict[int, str]] = {"district": {}, "microarea": {}, "street": {}}
+_CONDITION_BY_LABEL: Dict[str, set] = {}
+_CONDITION_SYNONYM_TO_LABEL: Dict[str, str] = {}
+_CONDITION_ID_BY_LABEL: Dict[str, int] = {}
+_FILTER_PATTERNS: Dict[str, List[Dict[str, Any]]] = {}
+
+
+def _load_locations() -> Tuple[Dict[str, Dict[str, int]], Dict[str, Dict[int, str]]]:
+    rows = sheets_client.fetch_records("districts")
+    syn: Dict[str, Dict[str, int]] = {"district": {}, "microarea": {}, "street": {}}
+    names: Dict[str, Dict[int, str]] = {"district": {}, "microarea": {}, "street": {}}
+
+    for r in rows:
+        location_type = str(r.get("type") or "").strip().lower()
+        synonym = str(r.get("synonym") or "").strip()
+        official_name = str(r.get("official_name") or "").strip()
+
+        try:
+            target_id = int(r.get("target_id")) if r.get("target_id") not in (None, "") else None
+        except (ValueError, TypeError):
+            target_id = None
+
+        if location_type in syn and synonym and target_id:
+            normalized_key = _norm(synonym)
+            if normalized_key:
+                syn[location_type][normalized_key] = target_id
+                if official_name:
+                    names[location_type][target_id] = official_name
+
+    return syn, names
+
+
+def _load_conditions() -> Tuple[Dict[str, set], Dict[str, str], Dict[str, int]]:
+    rows = sheets_client.dictionaries()
+    by_label: Dict[str, set] = {}
+    syn_to_label: Dict[str, str] = {}
+    id_by_label: Dict[str, int] = {}
+
+    for r in rows:
+        label = str(r.get("label") or "").strip()
+        synonyms_str = str(r.get("synonyms") or "").strip()
+
+        try:
+            condition_id = int(r.get("id"))
+        except (ValueError, TypeError):
+            condition_id = None
+
+        if not label or not condition_id:
             continue
-        identifier, name = raw.split(":", 1)
-        key = name.strip().lower()
-        if key:
-            result[key] = int(identifier.strip())
-    return result
 
-DISTRICTS = parse_source(DISTRICT_SOURCE)
-MICROAREAS = parse_source(MICROAREA_SOURCE)
-STREETS = parse_source(STREET_SOURCE)
+        normalized_label = _norm(label)
 
-ROOM_PATTERN = re.compile(r"(\d+)[\s-]*(?:кімнат|комнат|room)", re.IGNORECASE)
-NUMBER_PATTERN = re.compile(r"\d+[\s\d]*")
+        if normalized_label not in by_label:
+            by_label[normalized_label] = set()
 
-def extract_ints(text: str) -> List[int]:
-    values: List[int] = []
-    for match in NUMBER_PATTERN.findall(text.replace("\u00a0", "")):
-        digits = re.sub(r"[^0-9]", "", match)
-        if digits:
-            values.append(int(digits))
-    return values
+        by_label[normalized_label].add(normalized_label)
+        syn_to_label[normalized_label] = label
+        id_by_label[label] = condition_id
 
-def match_map(text: str, mapping: Dict[str, int]) -> List[int]:
-    result: List[int] = []
-    normalized = text.lower()
-    for label, identifier in mapping.items():
-        if label in normalized:
-            result.append(identifier)
-    return result
+        if synonyms_str:
+            for synonym in synonyms_str.split(";"):
+                synonym = synonym.strip()
+                if synonym:
+                    normalized_syn = _norm(synonym)
+                    if normalized_syn:
+                        by_label[normalized_label].add(normalized_syn)
+                        syn_to_label[normalized_syn] = label
 
-def parse_rooms(text: str) -> List[int]:
-    result = [int(match.group(1)) for match in ROOM_PATTERN.finditer(text)]
-    if result:
+    return by_label, syn_to_label, id_by_label
+
+
+def _load_filter_patterns() -> Dict[str, List[Dict[str, Any]]]:
+    patterns: Dict[str, List[Dict[str, Any]]] = {}
+    try:
+        rows = sheets_client.filter_patterns()
+        for row in rows:
+            filter_key = str(row.get("filter_key", "")).strip().lower()
+            pattern_type = str(row.get("pattern_type", "")).strip().lower()
+            pattern_text = str(row.get("pattern_text", "")).strip()
+
+            value_min = row.get("value_min")
+            value_max = row.get("value_max")
+            value_list = row.get("value_list")
+
+            if value_min == "" or value_min is None:
+                value_min = None
+            else:
+                try:
+                    value_min = int(value_min)
+                except:
+                    value_min = None
+
+            if value_max == "" or value_max is None:
+                value_max = None
+            else:
+                try:
+                    value_max = int(value_max)
+                except:
+                    value_max = None
+
+            if value_list and value_list != "":
+                if str(value_list).upper() == "LAST":
+                    value_list = "LAST"
+                else:
+                    try:
+                        value_list = int(value_list)
+                    except:
+                        value_list = None
+            else:
+                value_list = None
+
+            if filter_key not in patterns:
+                patterns[filter_key] = []
+
+            patterns[filter_key].append({
+                "type": pattern_type,
+                "text": pattern_text,
+                "min": value_min,
+                "max": value_max,
+                "list": value_list
+            })
+    except Exception as e:
+        logger.error(f"Failed to load filter_patterns: {e}", exc_info=True)
+
+    return patterns
+
+
+def reload_lookups() -> None:
+    global _LOCATION_SYNONYMS, _LOCATION_NAMES, _CONDITION_BY_LABEL, _CONDITION_SYNONYM_TO_LABEL, _CONDITION_ID_BY_LABEL, _FILTER_PATTERNS
+    _LOCATION_SYNONYMS, _LOCATION_NAMES = _load_locations()
+    _CONDITION_BY_LABEL, _CONDITION_SYNONYM_TO_LABEL, _CONDITION_ID_BY_LABEL = _load_conditions()
+    _FILTER_PATTERNS = _load_filter_patterns()
+    logger.info(f"[LLM] Loaded {len(_FILTER_PATTERNS)} filter pattern keys")
+
+
+reload_lookups()
+
+
+def _match_condition_labels(text: str) -> List[str]:
+    normalized = _norm(text)
+    tokens = f" {normalized} "
+    matched_labels: List[str] = []
+
+    for normalized_label, synonyms in _CONDITION_BY_LABEL.items():
+        for synonym in synonyms:
+            if f" {synonym} " in tokens:
+                label = _CONDITION_SYNONYM_TO_LABEL.get(synonym) or _CONDITION_SYNONYM_TO_LABEL.get(normalized_label)
+                if label and label not in matched_labels:
+                    matched_labels.append(label)
+                break
+
+    return matched_labels
+
+
+def _stem(word: str) -> str:
+    if len(word) <= 3:
+        return word
+
+    endings = [
+        'ого', 'ому', 'ими', 'ыми', 'ому', 'ого', 'ой', 'ый', 'ий', 'ас', 'яс', 'ое', 'ее',
+        'ом', 'ою', 'ам', 'ами', 'ах', 'ів', 'ов', 'ей', 'ям', 'ями', 'ях',
+        'а', 'у', 'ю', 'о', 'е', 'і', 'и', 'ь', 'ї'
+    ]
+
+    for ending in sorted(endings, key=len, reverse=True):
+        if word.endswith(ending) and len(word) - len(ending) >= 3:
+            return word[:-len(ending)]
+
+    return word
+
+
+def _match_single_location(text: str) -> Dict[str, Any]:
+    normalized = _norm(text)
+    result = {"district_id": [], "microarea_id": [], "street_id": []}
+
+    street_id = _LOCATION_SYNONYMS["street"].get(normalized)
+    if street_id:
+        result["street_id"].append(street_id)
         return result
-    values = extract_ints(text)
-    filtered = [value for value in values if 0 < value < 8]
-    return filtered
 
-def parse_price(text: str) -> Dict[str, int]:
-    values = extract_ints(text)
-    if not values:
-        return {}
-    if len(values) == 1:
-        return {"price_max": values[0]}
-    return {"price_min": min(values), "price_max": max(values)}
+    words = normalized.split()
+    for word in words:
+        stemmed_word = _stem(word)
 
-def parse_area(text: str) -> Dict[str, int]:
-    values = extract_ints(text)
-    if not values:
-        return {}
-    filtered = [value for value in values if value > 10]
-    if not filtered:
-        return {}
-    if len(filtered) == 1:
-        return {"area_min": filtered[0]}
-    return {"area_min": min(filtered), "area_max": max(filtered)}
+        for syn_key, syn_id in _LOCATION_SYNONYMS["street"].items():
+            if _stem(syn_key) == stemmed_word:
+                if syn_id not in result["street_id"]:
+                    result["street_id"].append(syn_id)
+                break
 
-def parse_floors(text: str) -> Dict[str, int]:
-    values = extract_ints(text)
-    if not values:
-        return {}
-    if len(values) == 1:
-        return {"floor_min": values[0], "floor_max": values[0]}
-    return {"floor_min": min(values), "floor_max": max(values)}
+        for syn_key, syn_id in _LOCATION_SYNONYMS["microarea"].items():
+            if _stem(syn_key) == stemmed_word:
+                if syn_id not in result["microarea_id"]:
+                    result["microarea_id"].append(syn_id)
+                break
 
-def parse_condition(text: str) -> List[int]:
-    normalized = text.lower()
-    result: List[int] = []
-    for name, identifier in CONDITION_MAP.items():
-        if name in normalized:
-            result.append(identifier)
+        for syn_key, syn_id in _LOCATION_SYNONYMS["district"].items():
+            if _stem(syn_key) == stemmed_word:
+                if syn_id not in result["district_id"]:
+                    result["district_id"].append(syn_id)
+                break
+
     return result
+
+
+def _match_locations(text: str) -> Dict[str, Any]:
+    parts = [part.strip() for part in re.split(r"[;,]", text) if part.strip()]
+
+    enhanced_parts = []
+    last_base_name = None
+
+    for part in parts:
+        if re.match(r'^\d+-?(й|и|ий|ый|і)$', part.strip(), re.IGNORECASE):
+            if last_base_name:
+                enhanced_parts.append(f"{last_base_name} {part}")
+            else:
+                enhanced_parts.append(part)
+        else:
+            enhanced_parts.append(part)
+            match = re.match(r'(.+?)\s+\d+-?(й|и|ий|ый|і)$', part, re.IGNORECASE)
+            if match:
+                last_base_name = match.group(1)
+            else:
+                last_base_name = part
+
+    combined_result = {"district_id": [], "microarea_id": [], "street_id": []}
+
+    for part in enhanced_parts:
+        part_result = _match_single_location(part)
+
+        for key in ("district_id", "microarea_id", "street_id"):
+            for item in part_result[key]:
+                if item not in combined_result[key]:
+                    combined_result[key].append(item)
+
+    if combined_result["street_id"]:
+        return {
+            "street_id": combined_result["street_id"],
+            "explicit_street": True,
+            "district_id": [],
+            "microarea_id": []
+        }
+
+    return combined_result
+
+
+def _apply_pattern_match(key: str, answer: str) -> Optional[Dict[str, Any]]:
+    if key not in _FILTER_PATTERNS:
+        return None
+
+    lower_answer = answer.lower()
+    logger.info(f"[PATTERN] key={key}, checking patterns: {len(_FILTER_PATTERNS[key])}")
+
+    for pattern in _FILTER_PATTERNS[key]:
+        pattern_type = pattern["type"]
+        pattern_text = pattern["text"]
+        keywords = [kw.strip().lower() for kw in pattern_text.split(",") if kw.strip()]
+
+        logger.info(f"[PATTERN] type={pattern_type}, keywords={keywords[:3]}...")
+
+        matched = False
+        if pattern_type == "word":
+            normalized = _norm(answer)
+            for keyword in keywords:
+                if _norm(keyword) in normalized.split():
+                    matched = True
+                    break
+        elif pattern_type == "phrase":
+            for keyword in keywords:
+                if keyword in lower_answer:
+                    matched = True
+                    break
+        elif pattern_type == "skip":
+            for keyword in keywords:
+                if keyword in lower_answer:
+                    return {}
+        elif pattern_type == "special":
+            for keyword in keywords:
+                logger.info(f"[PATTERN] Checking special keyword '{keyword}' in '{lower_answer}'")
+                if keyword in lower_answer:
+                    matched = True
+                    logger.info(f"[PATTERN] MATCHED special: {keyword}")
+                    break
+
+        if matched:
+            result = {}
+
+            if key == "rooms" and pattern["list"] is not None:
+                result["rooms_in"] = [pattern["list"]]
+            elif key == "floor":
+                if pattern.get("list") == "LAST":
+                    result["floor_only_last"] = True
+                elif pattern["min"] is not None or pattern["max"] is not None:
+                    if pattern["min"] is not None:
+                        result["floor_min"] = pattern["min"]
+                    if pattern["max"] is not None:
+                        result["floor_max"] = pattern["max"]
+            elif key == "area":
+                if pattern["min"] is not None:
+                    result["area_min"] = pattern["min"]
+                if pattern["max"] is not None:
+                    result["area_max"] = pattern["max"]
+            elif key == "price":
+                if pattern["min"] is not None:
+                    result["price_min"] = pattern["min"]
+                if pattern["max"] is not None:
+                    result["price_max"] = pattern["max"]
+
+            logger.info(f"[PATTERN] RESULT for key={key}: {result}")
+            return result
+
+    return None
 
 def parse_to_filters(key: str, answer: str) -> Dict[str, Any]:
-    normalized = answer.lower()
     result: Dict[str, Any] = {}
+    lower_answer = answer.lower()
+
+    pattern_result = _apply_pattern_match(key, answer)
+    if pattern_result is not None:
+        logger.info(f"[PARSE] Pattern matched for {key}: {pattern_result}")
+        return pattern_result
+
+    if key in ("price", "budget"):
+        numbers = [x for x in _ints(answer) if x > 1000]
+
+        if len(numbers) == 1:
+            num = numbers[0]
+            if any(word in lower_answer for word in ["до", "максимум", "не більше", "не больше", "макс"]):
+                result["price_max"] = num
+                result["price_min"] = None
+            elif any(word in lower_answer for word in
+                     ["від", "от", "мінімум", "минимум", "не менше", "не меньше", "мін", "мин"]):
+                result["price_min"] = num
+                result["price_max"] = None
+            else:
+                result["price_max"] = num
+                result["price_min"] = None
+        elif len(numbers) > 1:
+            result["price_min"] = min(numbers)
+            result["price_max"] = max(numbers)
+        return result
+
+    if key == "rooms":
+        numbers = [x for x in _ints(answer) if 0 < x < 8]
+        lower_text = lower_answer
+
+        filtered_rooms = []
+        for num in numbers:
+            if re.search(rf'\b{num}-(й|я|і|ий|ій|ый|ой|ая|яя|є|ої|го|му)\b', lower_text, re.IGNORECASE):
+                continue
+
+            pattern = rf'\b{num}\b.{{0,20}}(кімнат|комнат|кімн|комн|к\b)'
+            if re.search(pattern, lower_text, re.IGNORECASE):
+                filtered_rooms.append(num)
+
+        if filtered_rooms:
+            result["rooms_in"] = filtered_rooms
+        elif numbers and not any(word in lower_text for word in ["етаж", "этаж", "пов"]):
+            if len(numbers) == 2 and any(word in lower_text for word in ["від", "от", "до"]):
+                min_rooms = min(numbers)
+                max_rooms = max(numbers)
+                result["rooms_in"] = list(range(min_rooms, max_rooms + 1))
+            else:
+                result["rooms_in"] = numbers
+        return result
+
+    if key == "area":
+        numbers = [x for x in _ints(answer) if 15 <= x <= 500]
+
+        if len(numbers) == 1:
+            num = numbers[0]
+            num_str = str(num)
+
+            has_min_local = re.search(
+                rf"(від|от|мінімум|минимум|не менше|не меньше|мін|мин)\s*{num_str}(?:\s*(м|м2|м²|кв|кв\.м|квм))?",
+                lower_answer
+            )
+            has_max_local = re.search(
+                rf"(до|максимум|не більше|не больше|макс)\s*{num_str}(?:\s*(м|м2|м²|кв|кв\.м|квм))?",
+                lower_answer
+            )
+
+            if has_min_local:
+                result["area_min"] = num
+                result["area_max"] = None
+            elif has_max_local:
+                result["area_max"] = num
+                result["area_min"] = None
+            else:
+                result["area_min"] = num
+                result["area_max"] = None
+
+        elif len(numbers) > 1:
+            result["area_min"] = min(numbers)
+            result["area_max"] = max(numbers)
+
+        return result
+
+    if key == "floor":
+        lower_text = lower_answer
+
+        if re.search(r'(\d+)\s*-\s*(\d+)', lower_text):
+            match = re.search(r'(\d+)\s*-\s*(\d+)', lower_text)
+            min_floor = int(match.group(1))
+            max_floor = int(match.group(2))
+            if 1 <= min_floor <= 50 and 1 <= max_floor <= 50:
+                result["floor_min"] = min_floor
+                result["floor_max"] = max_floor
+                return result
+
+        numbers = [x for x in _ints(answer) if 1 <= x <= 50]
+
+        filtered_floors = []
+        for num in numbers:
+            pattern = rf'\b{num}\b.{{0,20}}(етаж|этаж|пов)'
+            if re.search(pattern, lower_answer, re.IGNORECASE):
+                filtered_floors.append(num)
+
+        if not filtered_floors and len(numbers) == 1:
+            filtered_floors = numbers
+
+        if len(filtered_floors) == 1:
+            num = filtered_floors[0]
+            if any(word in lower_answer for word in ["до", "максимум", "не більше", "не больше", "макс"]):
+                result["floor_min"] = 1
+                result["floor_max"] = num
+            elif any(word in lower_answer for word in
+                     ["від", "от", "мінімум", "минимум", "не менше", "не меньше", "мін", "мин"]):
+                result["floor_min"] = num
+                result["floor_max"] = 50
+            else:
+                result["floor_min"] = num
+                result["floor_max"] = num
+        elif len(filtered_floors) > 1:
+            result["floor_min"] = min(filtered_floors)
+            result["floor_max"] = max(filtered_floors)
+        return result
+
+    if key in ("floors_total", "building_floors"):
+        numbers = [x for x in _ints(answer) if 1 <= x <= 30]
+
+        if len(numbers) == 1:
+            num = numbers[0]
+            if any(word in lower_answer for word in ["до", "максимум", "не більше", "не больше", "макс"]):
+                result["floors_total_min"] = 1
+                result["floors_total_max"] = num
+            elif any(word in lower_answer for word in
+                     ["від", "от", "мінімум", "минимум", "не менше", "не меньше", "мін", "мин"]):
+                result["floors_total_min"] = num
+                result["floors_total_max"] = 30
+            else:
+                result["floors_total_min"] = num
+                result["floors_total_max"] = num
+        elif len(numbers) > 1:
+            result["floors_total_min"] = min(numbers)
+            result["floors_total_max"] = max(numbers)
+        return result
+
+    if key in ("condition", "state"):
+        labels = _match_condition_labels(answer)
+        if labels:
+            condition_ids = [_CONDITION_ID_BY_LABEL[label] for label in labels if label in _CONDITION_ID_BY_LABEL]
+            if condition_ids:
+                result["condition_in"] = condition_ids
+        return result
+
+    if key == "section":
+        from .section_parser import detect_section
+        section = detect_section(answer)
+        if section:
+            result["section"] = section
+        return result
+
     if key == "district":
-        matches = match_map(normalized, DISTRICTS)
-        if matches:
-            result["district_id"] = matches
-        micro = match_map(normalized, MICROAREAS)
-        if micro:
-            result["microarea_id"] = micro
-        streets = match_map(normalized, STREETS)
-        if streets:
-            result["street_id"] = streets
-    elif key == "price":
-        result.update(parse_price(answer))
-    elif key == "rooms":
-        rooms = parse_rooms(answer)
-        if rooms:
-            result["rooms_in"] = rooms
-    elif key == "area":
-        result.update(parse_area(answer))
-    elif key == "floor":
-        result.update(parse_floors(answer))
-    elif key == "condition":
-        conditions = parse_condition(answer)
-        if conditions:
-            result["condition_in"] = conditions
-    if not result:
-        generic_districts = match_map(normalized, DISTRICTS)
-        if generic_districts:
-            result["district_id"] = generic_districts
-        generic_micro = match_map(normalized, MICROAREAS)
-        if generic_micro:
-            result["microarea_id"] = generic_micro
-        generic_streets = match_map(normalized, STREETS)
-        if generic_streets:
-            result["street_id"] = generic_streets
-        if "евро" in normalized:
-            result["condition_in"] = [8]
+        return _match_locations(answer)
+
     return result
+
+
+def _title_from_id(kind: str, location_id: int) -> str:
+    name = _LOCATION_NAMES.get(kind, {}).get(location_id)
+    return name if name else f"{kind} #{location_id}"
+
 
 def build_summary(filters: Dict[str, Any]) -> str:
     parts: List[str] = []
-    if "district_id" in filters:
-        districts = filters["district_id"]
-        labels = _labels_from_ids(districts, DISTRICTS)
-        parts.append(f"Район: {', '.join(labels)}")
-    if "microarea_id" in filters:
-        micro = filters["microarea_id"]
-        labels = _labels_from_ids(micro, MICROAREAS)
-        parts.append(f"Мікрорайон: {', '.join(labels)}")
-    if "street_id" in filters:
-        streets = filters["street_id"]
-        labels = _labels_from_ids(streets, STREETS)
-        parts.append(f"Вулиця: {', '.join(labels)}")
-    if "rooms_in" in filters:
-        rooms = ", ".join(str(value) for value in filters["rooms_in"])
-        parts.append(f"Кімнати: {rooms}")
-    if "price_min" in filters or "price_max" in filters:
-        low = filters.get("price_min")
-        high = filters.get("price_max")
-        if low and high:
-            parts.append(f"Бюджет: {low}-{high}")
-        elif high:
-            parts.append(f"Бюджет до {high}")
-        elif low:
-            parts.append(f"Бюджет від {low}")
-    if "area_min" in filters or "area_max" in filters:
-        low = filters.get("area_min")
-        high = filters.get("area_max")
-        if low and high:
-            parts.append(f"Площа: {low}-{high}")
-        elif high:
-            parts.append(f"Площа до {high}")
-        elif low:
-            parts.append(f"Площа від {low}")
-    return "\n".join(parts)
 
-def _labels_from_ids(values: Iterable[int], mapping: Dict[str, int]) -> List[str]:
-    reverse = {identifier: name for name, identifier in mapping.items()}
-    return [reverse.get(value, str(value)) for value in values]
+    if filters.get("district_id"):
+        names = [_title_from_id("district", i) for i in filters["district_id"]]
+        parts.append(f"Район: {', '.join(names)}")
+
+    if filters.get("microarea_id"):
+        names = [_title_from_id("microarea", i) for i in filters["microarea_id"]]
+        parts.append(f"Мікрорайон: {', '.join(names)}")
+
+    if filters.get("street_id"):
+        names = [_title_from_id("street", i) for i in filters["street_id"]]
+        parts.append(f"Вулиця: {', '.join(names)}")
+
+    if filters.get("rooms_in"):
+        parts.append(f"Кімнати: {', '.join(map(str, filters['rooms_in']))}")
+
+    price_min = filters.get("price_min")
+    price_max = filters.get("price_max")
+    if price_min and price_max:
+        parts.append(f"Бюджет: {price_min}-{price_max} грн")
+    elif price_max:
+        parts.append(f"Бюджет до {price_max} грн")
+    elif price_min:
+        parts.append(f"Бюджет від {price_min} грн")
+
+    area_min = filters.get("area_min")
+    area_max = filters.get("area_max")
+    if area_min and area_max:
+        parts.append(f"Площа: {area_min}-{area_max} м²")
+    elif area_max:
+        parts.append(f"Площа до {area_max} м²")
+    elif area_min:
+        parts.append(f"Площа від {area_min} м²")
+
+    floor_min = filters.get("floor_min")
+    floor_max = filters.get("floor_max")
+    if floor_min is not None or floor_max is not None:
+        if floor_min == floor_max and floor_min is not None:
+            parts.append(f"Поверх: {floor_min}")
+        elif floor_min and floor_max:
+            parts.append(f"Поверх: {floor_min}-{floor_max}")
+        elif floor_min:
+            parts.append(f"Поверх: від {floor_min}")
+        elif floor_max:
+            parts.append(f"Поверх: до {floor_max}")
+
+    floors_total_min = filters.get("floors_total_min")
+    floors_total_max = filters.get("floors_total_max")
+    if floors_total_min is not None or floors_total_max is not None:
+        if floors_total_min == floors_total_max and floors_total_min is not None:
+            parts.append(f"Поверховість будинку: {floors_total_min}")
+        elif floors_total_min and floors_total_max:
+            parts.append(f"Поверховість будинку: {floors_total_min}-{floors_total_max}")
+        elif floors_total_min:
+            parts.append(f"Поверховість будинку: від {floors_total_min}")
+        elif floors_total_max:
+            parts.append(f"Поверховість будинку: до {floors_total_max}")
+
+    if filters.get("condition_label_in"):
+        parts.append(f"Стан: {', '.join(filters['condition_label_in'])}")
+
+    return "\n".join(parts) if parts else "Параметри не задані"
