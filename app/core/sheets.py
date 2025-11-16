@@ -45,9 +45,6 @@ class SheetsClient:
     def objections(self) -> List[Dict[str, Any]]:
         return self.fetch_records("objections")
 
-    def reactions(self) -> List[Dict[str, Any]]:
-        return self.fetch_records("reactions")
-
     def districts(self) -> List[Dict[str, Any]]:
         return self.fetch_records("districts")
 

@@ -4,7 +4,6 @@ from app.core import llm, section_parser
 from app.core.rules import rule_engine
 from app.core.questions import question_flow
 from app.core.sheets import sheets_client
-from app.services.silence_monitor import get_monitor
 import logging
 
 logging.basicConfig(
